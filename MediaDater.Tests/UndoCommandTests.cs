@@ -130,7 +130,7 @@ public class UndoCommandTests : IDisposable
     }
 
     [Fact]
-    public void Undo_WithPartialFailure_PreservesManifest()
+    public void Undo_WithPartialFailure_PrunesRevertedEntriesFromManifest()
     {
         string orig1 = Path.Combine(_tempDir, "good.jpg");
         string new1 = Path.Combine(_tempDir, "good-renamed.jpg");
@@ -157,6 +157,65 @@ public class UndoCommandTests : IDisposable
         File.Exists(orig1).Should().BeTrue();
         File.Exists(new2).Should().BeTrue();
         File.Exists(orig2).Should().BeTrue();
-        ManifestManager.Load(_tempDir).Should().HaveCount(2);
+
+        List<FileRenameInfo> remaining = ManifestManager.Load(_tempDir);
+        remaining.Should().HaveCount(1);
+        remaining[0].Should().Be(new FileRenameInfo(orig2, new2));
+    }
+
+    [Fact]
+    public void Undo_RetryAfterPartialFailure_RevertsRemainingAndDeletesManifest()
+    {
+        string orig1 = Path.Combine(_tempDir, "good.jpg");
+        string new1 = Path.Combine(_tempDir, "good-renamed.jpg");
+        File.WriteAllText(orig1, "good");
+        File.Move(orig1, new1);
+
+        string orig2 = Path.Combine(_tempDir, "conflict.jpg");
+        string new2 = Path.Combine(_tempDir, "conflict-renamed.jpg");
+        File.WriteAllText(orig2, "blocking file");
+        File.WriteAllText(new2, "renamed content");
+
+        ManifestManager.Save(_tempDir, [new(orig1, new1), new(orig2, new2)]);
+
+        UndoCommand.Run(_tempDir);
+        ManifestManager.Load(_tempDir).Should().HaveCount(1);
+
+        File.Delete(orig2);
+
+        UndoCommand.Run(_tempDir);
+
+        File.Exists(new2).Should().BeFalse();
+        File.Exists(orig2).Should().BeTrue();
+        File.ReadAllText(orig2).Should().Be("renamed content");
+        ManifestManager.Load(_tempDir).Should().BeEmpty();
+        File.Exists(Path.Combine(_tempDir, ".rename_manifest.json")).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Undo_AfterDirectoryMoved_RevertsRelativeEntriesAndDeletesManifest()
+    {
+        string originalDir = Path.Combine(_tempDir, "Photos");
+        string movedDir = Path.Combine(_tempDir, "PhotosMoved");
+        string subDir = Path.Combine(originalDir, "Trip");
+        Directory.CreateDirectory(subDir);
+
+        string orig = Path.Combine(subDir, "IMG_20240512_143045.jpg");
+        string renamed = Path.Combine(subDir, "1403-02-23_14-30-45.jpg");
+        File.WriteAllText(orig, "photo bytes");
+        File.Move(orig, renamed);
+
+        ManifestManager.Save(originalDir, [new(orig, renamed)]);
+
+        Directory.Move(originalDir, movedDir);
+
+        UndoCommand.Run(movedDir);
+
+        string movedOrig = Path.Combine(movedDir, "Trip", "IMG_20240512_143045.jpg");
+        string movedRenamed = Path.Combine(movedDir, "Trip", "1403-02-23_14-30-45.jpg");
+        File.Exists(movedRenamed).Should().BeFalse();
+        File.Exists(movedOrig).Should().BeTrue();
+        File.ReadAllText(movedOrig).Should().Be("photo bytes");
+        File.Exists(Path.Combine(movedDir, ".rename_manifest.json")).Should().BeFalse();
     }
 }

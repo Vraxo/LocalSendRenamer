@@ -31,6 +31,7 @@ To run it from any directory, add that output folder to your `PATH` yourself.
 | Command | Description |
 | --- | --- |
 | `MediaDater` | Rename files in the current directory |
+| `MediaDater --dry-run` | List what would be renamed in the current directory, change nothing |
 | `MediaDater rename [directory]` | Rename files in `directory` (defaults to the current one) |
 | `MediaDater rename [directory] --dry-run` | List what would be renamed, change nothing |
 | `MediaDater undo` | Revert the last run recorded in the current directory |

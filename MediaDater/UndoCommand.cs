@@ -14,6 +14,7 @@ internal static class UndoCommand
         string fileWord = entries.Count == 1 ? "file" : "files";
         ConsoleLogger.Info($"Found {entries.Count} {fileWord} to revert.\n");
         int undone = 0;
+        List<FileRenameInfo> remaining = [];
 
         foreach (FileRenameInfo entry in entries)
         {
@@ -23,12 +24,14 @@ internal static class UndoCommand
             if (!File.Exists(entry.NewPath))
             {
                 ConsoleLogger.Warning($"New file missing, cannot revert: {newName}");
+                remaining.Add(entry);
                 continue;
             }
 
             if (File.Exists(entry.OriginalPath))
             {
                 ConsoleLogger.Warning($"Original already exists, skipping revert: {originalName}");
+                remaining.Add(entry);
                 continue;
             }
 
@@ -41,10 +44,11 @@ internal static class UndoCommand
             catch (Exception ex)
             {
                 ConsoleLogger.Error($"Failed to revert {newName}: {ex.Message}");
+                remaining.Add(entry);
             }
         }
 
-        if (undone == entries.Count)
+        if (remaining.Count == 0)
         {
             ManifestManager.Delete(directory);
             Console.WriteLine();
@@ -52,10 +56,11 @@ internal static class UndoCommand
         }
         else if (undone > 0)
         {
+            ManifestManager.Save(directory, remaining);
             Console.WriteLine();
             ConsoleLogger.Warning(
                 $"Partially undone: {undone} of {entries.Count} files. " +
-                "Manifest preserved for retry.");
+                "Manifest updated for retry.");
         }
         else
         {

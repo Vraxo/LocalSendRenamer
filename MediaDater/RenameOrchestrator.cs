@@ -38,11 +38,11 @@ internal static class RenameOrchestrator
         }
 
         IEnumerable<RenameBatch> batches = new RenamePlanner(baseDirectory, AllowedExtensions).Plan(entries);
-        (int totalRenamed, List<FileRenameInfo> allRenames) = ExecuteRenames(batches, dryRun);
+        (int totalRenamed, List<FileRenameInfo> succeededRenames) = ExecuteRenames(batches, dryRun);
 
-        if (!dryRun && totalRenamed > 0)
+        if (!dryRun && succeededRenames.Count > 0)
         {
-            ManifestManager.Save(baseDirectory, allRenames);
+            ManifestManager.Save(baseDirectory, succeededRenames);
         }
 
         stopwatch.Stop();
@@ -50,17 +50,15 @@ internal static class RenameOrchestrator
         Console.ReadLine();
     }
 
-    private static (int totalRenamed, List<FileRenameInfo> allRenames) ExecuteRenames(IEnumerable<RenameBatch> batches, bool dryRun)
+    internal static (int TotalRenamed, List<FileRenameInfo> SucceededRenames) ExecuteRenames(IEnumerable<RenameBatch> batches, bool dryRun)
     {
-        List<FileRenameInfo> allRenames = [];
+        List<FileRenameInfo> succeededRenames = [];
         int totalRenamed = 0;
 
         foreach (RenameBatch batch in batches)
         {
             foreach (FileRenameInfo rename in batch.Renames)
             {
-                allRenames.Add(rename);
-
                 if (dryRun)
                 {
                     ConsoleLogger.Info($"[DRY RUN] Would rename: {Path.GetFileName(rename.OriginalPath)} -> {Path.GetFileName(rename.NewPath)}");
@@ -73,11 +71,12 @@ internal static class RenameOrchestrator
                     continue;
                 }
 
+                succeededRenames.Add(rename);
                 totalRenamed++;
             }
         }
 
-        return (totalRenamed, allRenames);
+        return (totalRenamed, succeededRenames);
     }
 
     private static void PrintSummary(int totalScanned, int skippedCount, int totalRenamed, TimeSpan elapsed, bool dryRun)

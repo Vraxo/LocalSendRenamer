@@ -86,7 +86,7 @@ Anything else in the scanned folders is left alone.
 
 ## ↩️ Undo
 
-A successful run writes `.rename_manifest.json` into the directory it processed. `undo` reads that file from the current directory and moves the files back, skipping any entry whose target already exists or whose renamed file is gone. The manifest is deleted once every entry has been reverted.
+A successful run writes `.rename_manifest.json` into the directory it processed (with paths stored relative to that directory). `undo` reads that file from the current directory and moves the files back, skipping any entry whose target already exists or whose renamed file is gone. Reverted entries are removed from the manifest, and the manifest itself is deleted once every entry has been reverted.
 
 The manifest holds only the latest run, so `undo` covers that run and not the ones before it.
 

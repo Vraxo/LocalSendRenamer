@@ -10,8 +10,16 @@ internal static class ManifestManager
     public static void Save(string directory, IEnumerable<FileRenameInfo> renames)
     {
         string manifestPath = Path.Combine(directory, ManifestFileName);
-        string json = JsonSerializer.Serialize(renames, JsonOptions);
+        string baseDir = GetFullBaseDirectory(directory);
 
+        List<FileRenameInfo> manifestEntries =
+        [
+            .. renames.Select(r => new FileRenameInfo(
+                ToRelativeManifestPath(baseDir, r.OriginalPath),
+                ToRelativeManifestPath(baseDir, r.NewPath)))
+        ];
+
+        string json = JsonSerializer.Serialize(manifestEntries, JsonOptions);
         File.WriteAllText(manifestPath, json);
     }
 
@@ -25,7 +33,21 @@ internal static class ManifestManager
         }
 
         string json = File.ReadAllText(manifestPath);
-        return JsonSerializer.Deserialize<List<FileRenameInfo>>(json) ?? [];
+        List<FileRenameInfo>? entries = JsonSerializer.Deserialize<List<FileRenameInfo>>(json);
+
+        if (entries is null || entries.Count == 0)
+        {
+            return [];
+        }
+
+        string baseDir = GetFullBaseDirectory(directory);
+
+        return
+        [
+            .. entries.Select(e => new FileRenameInfo(
+                FromRelativeManifestPath(baseDir, e.OriginalPath),
+                FromRelativeManifestPath(baseDir, e.NewPath)))
+        ];
     }
 
     public static void Delete(string directory)
@@ -36,5 +58,24 @@ internal static class ManifestManager
         {
             File.Delete(manifestPath);
         }
+    }
+
+    private static string GetFullBaseDirectory(string directory)
+    {
+        return string.IsNullOrEmpty(directory)
+            ? Environment.CurrentDirectory
+            : Path.GetFullPath(directory);
+    }
+
+    private static string ToRelativeManifestPath(string baseDir, string filePath)
+    {
+        return Path.GetRelativePath(baseDir, Path.GetFullPath(filePath))
+            .Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private static string FromRelativeManifestPath(string baseDir, string relativePath)
+    {
+        string normalized = relativePath.Replace('/', Path.DirectorySeparatorChar);
+        return Path.GetFullPath(Path.Combine(baseDir, normalized));
     }
 }
